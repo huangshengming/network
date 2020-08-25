@@ -10,6 +10,7 @@
     <version>0.1.0-SNAPSHOT</version>
     <modules>
         <module>network-core</module>
+        <module>network-serializer</module>
     </modules>
 
     <properties>
