@@ -23,7 +23,8 @@ public class JObjectOutputHandler extends ChannelOutboundHandlerAdapter {
 
         } finally{
             if (null != byteBuf){
-                byteBuf.release();
+                // 避免重复释放 ByteBuf
+                //byteBuf.release();
             }
         }
     }
