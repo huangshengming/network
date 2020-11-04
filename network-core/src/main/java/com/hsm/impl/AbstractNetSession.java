@@ -3,14 +3,17 @@ package com.hsm.impl;
 import com.hsm.GameMessage;
 import com.hsm.INetSession;
 import com.hsm.IRelayProxy;
+import com.hsm.net.DispatcherHandler;
 import com.hsm.proxy.RelayInvocationHandler;
 import com.hsm.proxy.RemoteInvocationHandler;
+import com.hsm.proxy.SelfInvocationHandler;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -34,8 +37,22 @@ public abstract class AbstractNetSession implements INetSession, ChannelFutureLi
     }
 
     @Override
-    public void callSelf(GameMessage gameMessage) {
-
+    public void callSelf(GameMessage gameMessage) throws InvocationTargetException, IllegalAccessException {
+        if (getChannel().eventLoop().inEventLoop()){
+            // 如果是在netty线程里面
+            final DispatcherHandler dispatcherHandler = getChannel().pipeline().get(DispatcherHandler.class);
+            dispatcherHandler.callSelf(gameMessage);
+        }else {
+            // 在业务线程里面,封装成runnable丢到netty线程池
+            getChannel().eventLoop().execute(()->{
+                final DispatcherHandler dispatcherHandler = getChannel().pipeline().get(DispatcherHandler.class);
+                try {
+                    dispatcherHandler.callSelf(gameMessage);
+                } catch (Exception e) {
+                    logger.error("callSelf ", e);
+                }
+            });
+        }
     }
 
     @Override
@@ -129,6 +146,15 @@ public abstract class AbstractNetSession implements INetSession, ChannelFutureLi
         T f = (T) Proxy.newProxyInstance(clazz.getClassLoader(),
                 new Class[]{clazz, IRelayProxy.class},
                 new RelayInvocationHandler<T>(clazz, this));
+        return f;
+    }
+
+    @Override
+    public <T> T newSelfProxy(Class<T> tClass) {
+        @SuppressWarnings("unchecked")
+        T f = (T) Proxy.newProxyInstance(tClass.getClassLoader(),
+                new Class[]{tClass},
+                new SelfInvocationHandler(this));
         return f;
     }
 
