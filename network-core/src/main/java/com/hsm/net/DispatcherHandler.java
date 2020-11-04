@@ -6,6 +6,8 @@ import com.hsm.INetSession;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
+import java.lang.reflect.InvocationTargetException;
+
 public class DispatcherHandler extends ChannelInboundHandlerAdapter {
 
     private ApcDispatcher apcDispatcher;
@@ -23,5 +25,10 @@ public class DispatcherHandler extends ChannelInboundHandlerAdapter {
         gameMessage.setNetsession(netSession);
 
         apcDispatcher.call(this.netSession, gameMessage);
+    }
+
+    public void callSelf(GameMessage message) throws InvocationTargetException, IllegalAccessException {
+        message.setNetsession(netSession);
+        apcDispatcher.call(netSession, message);
     }
 }
