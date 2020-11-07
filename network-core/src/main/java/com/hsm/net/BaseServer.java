@@ -3,6 +3,7 @@ package com.hsm.net;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
@@ -13,8 +14,11 @@ import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class BaseServer {
+    private static final Logger LOG = LoggerFactory.getLogger(BaseServer.class);
 
     private ServerBootstrap serverBootstrap;
     private EventLoopGroup bossGroup;
@@ -68,18 +72,25 @@ public abstract class BaseServer {
         ChannelFuture future = serverBootstrap.bind(port).sync();
         future.syncUninterruptibly();
         this.channel = future.channel();
+        this.channel.closeFuture().addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) throws Exception {
+                bossGroup.shutdownGracefully();
+                workerGroup.shutdownGracefully();
+                LOG.info("{}, 链路关闭。", future.channel());
+            }
+        });
     }
 
-    private void shutDown(){
+    public void shutDown(){
         try {
             if (this.channel != null){
-                this.channel.closeFuture().sync();
+                bossGroup.shutdownGracefully();
+                workerGroup.shutdownGracefully();
+                LOG.info("closed hook {}, 链路关闭。", this.channel);
             }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }finally {
-            bossGroup.shutdownGracefully();
-            workerGroup.shutdownGracefully();
+        } catch (Exception e) {
+            LOG.error("关闭链路失败");
         }
     }
 }
